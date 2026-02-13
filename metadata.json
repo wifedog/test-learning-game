@@ -1,0 +1,5 @@
+{
+  "name": "Space Multiplier: Galactic Math Shooter",
+  "description": "An action-packed 9x9 multiplication game where players pilot a spaceship to destroy meteorites by solving math problems. Features 3 difficulty levels and progress tracking.",
+  "requestFramePermissions": []
+}
