@@ -5,23 +5,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>太空乘法防禦戰 | Space Multiplier</title>
+    
+    <!-- 載入外部資源 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-    <!-- 使用 Babel Standalone 處理 React 代碼 -->
+    
+    <!-- 載入 React 與 Babel (不使用模組化導入，改用全域變數以提升穩定性) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
         body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
+            margin: 0; padding: 0; overflow: hidden;
             background-color: #020617;
             font-family: 'Orbitron', sans-serif;
             color: #e2e8f0;
             user-select: none;
         }
         .font-mono-tech { font-family: 'Share+Tech+Mono', monospace; }
-        .glow-text { text-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
+        .glow-text { text-shadow: 0 0 10px #22d3ee, 0 0 20px #22d3ee; }
         .space-gradient { background: radial-gradient(circle at center, #1e293b 0%, #020617 100%); }
         
         #root:empty::before {
@@ -34,12 +37,10 @@
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
-
-    <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "react": "https://esm.sh/react@^19.2.4",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/"
   }
@@ -48,24 +49,21 @@
 </head>
 <body>
     <div id="root"></div>
-    <script type="text/babel" data-presets="react,typescript">
-        /** 
-         * 這裡直接放入 App.tsx 的所有內容 
-         * 這樣可以確保在任何伺服器環境都能直接執行
-         */
-        import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-        import ReactDOM from 'react-dom/client';
 
-        // --- 1. 常數與設定 ---
+    <script type="text/babel">
+        // 從全域變數解構需要的 Hook
+        const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+        // --- 遊戲邏輯與組件 ---
         const TOTAL_QUESTIONS = 10;
         const HITS_TO_DESTROY = 7; 
         const FIRE_RATE = 120;     
 
-        enum GameState { MENU, PLAYING, RESULT, HISTORY }
+        const GameState = { MENU: 'MENU', PLAYING: 'PLAYING', RESULT: 'RESULT', HISTORY: 'HISTORY' };
 
-        // --- 2. 背景組件 ---
+        // 背景：星星閃爍
         const Background = () => {
-          const stars = useMemo(() => Array.from({ length: 120 }).map((_, i) => ({
+          const stars = useMemo(() => Array.from({ length: 80 }).map((_, i) => ({
             id: i, x: Math.random() * 100, y: Math.random() * 100, size: Math.random() * 2 + 1, duration: Math.random() * 3 + 2
           })), []);
           return (
@@ -79,7 +77,7 @@
           );
         };
 
-        // --- 3. 遊戲核心引擎 ---
+        // 核心引擎
         const GameEngine = ({ level, onEnd, onQuit }) => {
           const [questions, setQuestions] = useState([]);
           const [currentIdx, setCurrentIdx] = useState(0);
@@ -96,6 +94,7 @@
           const lastFireTime = useRef(0);
           const bulletIdRef = useRef(0);
 
+          // 初始化題目
           useEffect(() => {
             const poolA = level === 1 ? [1, 2, 3] : level === 2 ? [4, 5, 6] : [7, 8, 9];
             const qs = Array.from({ length: TOTAL_QUESTIONS }).map(() => {
@@ -104,7 +103,7 @@
               const ans = a * b;
               let opts = [ans];
               while (opts.length < 3) {
-                const w = (poolA[Math.floor(Math.random() * poolA.length)] * (Math.floor(Math.random() * 9) + 1));
+                const w = (Math.floor(Math.random() * 9) + 1) * (Math.floor(Math.random() * 9) + 1);
                 if (!opts.includes(w)) opts.push(w);
               }
               return { a, b, answer: ans, options: opts.sort(() => Math.random() - 0.5) };
@@ -112,6 +111,7 @@
             setQuestions(qs);
           }, [level]);
 
+          // 下一題更新
           useEffect(() => {
             if (questions[currentIdx]) {
               const q = questions[currentIdx];
@@ -133,7 +133,7 @@
               setShotsFired(s => s + 1);
               lastFireTime.current = now;
             }
-            bulletsRef.current = bulletsRef.current.map(b => ({ ...b, y: b.y - 3.5 })).filter(b => b.y > -5);
+            bulletsRef.current = bulletsRef.current.map(b => ({ ...b, y: b.y - 4 })).filter(b => b.y > -5);
             targetsRef.current = targetsRef.current.map(t => ({ ...t, flash: Math.max(0, t.flash - 0.1) }));
             const hitBulletIds = new Set();
             bulletsRef.current.forEach(b => {
@@ -191,26 +191,29 @@
             <div ref={containerRef} className="relative w-full h-full cursor-none overflow-hidden">
               <div className="absolute top-0 w-full p-8 flex justify-between items-start z-30 font-mono-tech">
                 <div className="bg-black/60 p-4 rounded-xl border border-blue-500/30">
-                  <div className="text-[10px] text-blue-400 uppercase">Progress</div>
+                  <div className="text-[10px] text-blue-400 uppercase font-bold">Progress</div>
                   <div className="text-2xl">{currentIdx + 1} / {TOTAL_QUESTIONS}</div>
                 </div>
-                <div className="bg-black/80 px-12 py-6 rounded-[2rem] border-2 border-cyan-400">
+                <div className="bg-black/80 px-12 py-6 rounded-[2rem] border-2 border-cyan-400 shadow-[0_0_20px_cyan]">
                   <div className="text-5xl font-black">{q ? `${q.a} × ${q.b}` : 'DONE'}</div>
                 </div>
                 <div className="bg-black/60 p-4 rounded-xl border border-blue-500/30 text-right">
-                  <div className="text-[10px] text-blue-400 uppercase">Score</div>
+                  <div className="text-[10px] text-blue-400 uppercase font-bold">Score</div>
                   <div className="text-2xl">{score}</div>
+                  <button onClick={onQuit} className="text-[9px] text-rose-400 underline block w-full">ABORT</button>
                 </div>
               </div>
               {targets.map(t => (
                 <div key={t.id} className={`absolute flex flex-col items-center transition-opacity duration-300 ${t.destroyed ? 'opacity-0 scale-150' : 'opacity-100'}`} style={{ left: `${t.x}%`, top: `${t.y + 10}%`, transform: 'translateX(-50%)' }}>
                   {!t.destroyed && (
                     <div className="w-16 h-1.5 bg-gray-950 rounded-full mb-3 border border-white/10 overflow-hidden">
-                      <div className="h-full bg-cyan-400" style={{ width: `${(t.hp/t.maxHp)*100}%` }} />
+                      <div className="h-full bg-cyan-400 shadow-[0_0_8px_cyan]" style={{ width: `${(t.hp/t.maxHp)*100}%` }} />
                     </div>
                   )}
                   <div className={`w-32 h-32 flex items-center justify-center relative ${t.flash > 0 ? 'scale-110 brightness-150' : ''}`}>
-                     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full text-slate-700"><path fill="currentColor" d="M25,50 Q10,20 50,10 Q90,20 80,50 Q90,80 50,90 Q10,80 25,50" /></svg>
+                     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full text-slate-700 drop-shadow-2xl">
+                        <path fill="currentColor" d="M25,50 Q10,20 50,10 Q90,20 80,50 Q90,80 50,90 Q10,80 25,50" />
+                     </svg>
                      <span className="relative z-10 text-4xl font-black font-mono-tech text-cyan-100">{t.value}</span>
                   </div>
                 </div>
@@ -232,14 +235,14 @@
           const [res, setRes] = useState({ score: 0, accuracy: 0 });
 
           useEffect(() => {
-            const saved = localStorage.getItem('space_math_logs');
+            const saved = localStorage.getItem('space_math_final_logs');
             if (saved) setHistory(JSON.parse(saved));
           }, []);
 
           const handleEnd = (s, a) => {
             const nh = [ { level, score: s, accuracy: a, timestamp: Date.now() }, ...history ].slice(0, 50);
             setHistory(nh);
-            localStorage.setItem('space_math_logs', JSON.stringify(nh));
+            localStorage.setItem('space_math_final_logs', JSON.stringify(nh));
             setRes({ score: s, accuracy: a });
             setState(GameState.RESULT);
           };
@@ -249,11 +252,11 @@
               <Background />
               <div className="relative z-10 w-full h-full">
                 {state === GameState.MENU && (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <h1 className="text-8xl font-black text-cyan-400 glow-text mb-16 tracking-tighter">SPACE MATH</h1>
+                  <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                    <h1 className="text-7xl md:text-8xl font-black text-cyan-400 glow-text mb-16 tracking-tighter uppercase">Space Math</h1>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl mb-12">
                       {[1, 2, 3].map(l => (
-                        <button key={l} onClick={() => { setLevel(l); setState(GameState.PLAYING); }} className="p-12 rounded-[2.5rem] bg-slate-950 border border-white/10 hover:border-cyan-500 transition-all shadow-2xl">
+                        <button key={l} onClick={() => { setLevel(l); setState(GameState.PLAYING); }} className="p-12 rounded-[2.5rem] bg-slate-950 border border-white/10 hover:border-cyan-500 transition-all shadow-2xl active:scale-95">
                           <div className="text-5xl font-black mb-2">LV {l}</div>
                           <div className="text-sm opacity-50 font-mono-tech">{l===1?'1x1~3x9':l===2?'4x1~6x9':'7x1~9x9'}</div>
                         </button>
@@ -265,13 +268,13 @@
                 {state === GameState.PLAYING && <GameEngine level={level} onEnd={handleEnd} onQuit={() => setState(GameState.MENU)} />}
                 {state === GameState.RESULT && (
                   <div className="flex flex-col items-center justify-center h-full text-center">
-                    <div className="bg-slate-950/80 border-2 border-cyan-500 p-16 rounded-[3rem] shadow-2xl max-w-md w-full">
-                      <h2 className="text-5xl font-black text-cyan-400 mb-12 uppercase">Mission Briefing</h2>
+                    <div className="bg-slate-950 border-2 border-cyan-500 p-16 rounded-[3.5rem] shadow-2xl max-w-md w-full">
+                      <h2 className="text-5xl font-black text-cyan-400 mb-12 uppercase">Mission Brief</h2>
                       <div className="grid grid-cols-2 gap-8 mb-12">
                         <div><div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Score</div><div className="text-4xl font-black">{res.score}</div></div>
                         <div><div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Accuracy</div><div className="text-4xl font-black">{res.accuracy}%</div></div>
                       </div>
-                      <button onClick={() => setState(GameState.MENU)} className="w-full py-5 bg-cyan-600 rounded-2xl font-bold hover:bg-cyan-500 transition-all shadow-lg">RETURN TO BASE</button>
+                      <button onClick={() => setState(GameState.MENU)} className="w-full py-5 bg-cyan-600 rounded-2xl font-bold hover:bg-cyan-500 transition-all">RETURN TO BASE</button>
                     </div>
                   </div>
                 )}
@@ -280,7 +283,7 @@
                     <h2 className="text-5xl font-black text-cyan-400 mb-12 glow-text uppercase">Flight Logs</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10 w-full max-w-6xl mb-16">
                       {[1, 2, 3].map(lvl => (
-                        <div key={lvl} className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/10">
+                        <div key={lvl} className="bg-slate-900 p-8 rounded-[2.5rem] border border-white/10">
                           <h3 className="text-2xl font-black mb-6">LV {lvl} (Last 5)</h3>
                           <div className="space-y-4">
                             {history.filter(h => h.level === lvl).slice(0, 5).map((h, i) => (
@@ -289,6 +292,7 @@
                                 <div className="text-2xl font-black text-cyan-400">{h.accuracy}%</div>
                               </div>
                             ))}
+                            {history.filter(h => h.level === lvl).length === 0 && <div className="py-8 text-slate-600 italic">No data</div>}
                           </div>
                         </div>
                       ))}
@@ -301,7 +305,8 @@
           );
         };
 
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
