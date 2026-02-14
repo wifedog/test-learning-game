@@ -1,14 +1,12 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>太空乘法怪獸防禦戰</title>
+    <title>太空乘法防禦戰 | Space Multiplier</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-    
-    <!-- 載入 React 與 Babel (用於即時編譯 TSX) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
@@ -21,15 +19,19 @@
             color: #e2e8f0;
             user-select: none;
         }
-        .font-mono-tech {
+        .font-mono-tech { font-family: 'Share+Tech+Mono', monospace; }
+        .glow-text { text-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
+        .space-gradient { background: radial-gradient(circle at center, #1e293b 0%, #020617 100%); }
+        
+        #root:empty::before {
+            content: 'SYSTEM INITIALIZING...';
+            position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
             font-family: 'Share+Tech+Mono', monospace;
+            color: #22d3ee;
+            animation: pulse 1.5s infinite;
         }
-        .glow-text {
-            text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
-        }
-        .space-gradient {
-            background: radial-gradient(circle at center, #1e293b 0%, #020617 100%);
-        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     </style>
 
     <script type="importmap">
@@ -42,15 +44,11 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>
-    
-    <!-- 使用 text/babel 並加上 data-type="module" 讓 Babel 處理 TSX 模組 -->
-    <script type="text/babel" data-type="module">
-        import './index.tsx';
+    <script type="text/babel" data-presets="react,typescript" data-type="module">
+        import './App.tsx';
     </script>
-<script type="module" src="/index.tsx"></script>
 </body>
 </html>
