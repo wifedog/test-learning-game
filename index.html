@@ -6,13 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>太空乘法防禦戰 | Space Multiplier</title>
     
-    <!-- 載入外部資源 -->
+    <!-- 1. 載入 Tailwind 與 字體 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     
-    <!-- 載入 React 與 Babel (不使用模組化導入，改用全域變數以提升穩定性) -->
+    <!-- 2. 載入 React 18 UMD 版本 (最穩定) -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 3. 載入 Babel 用於即時編譯 JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
@@ -36,6 +38,19 @@
             animation: pulse 1.5s infinite;
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* 簡單的爆炸粒子效果 */
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            background: #22d3ee;
+            border-radius: 50%;
+            animation: explode 0.6s ease-out forwards;
+        }
+        @keyframes explode {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0); opacity: 0; transform: translate(var(--dx), var(--dy)); }
+        }
     </style>
 <script type="importmap">
 {
@@ -51,17 +66,14 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 從全域變數解構需要的 Hook
         const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-        // --- 遊戲邏輯與組件 ---
         const TOTAL_QUESTIONS = 10;
-        const HITS_TO_DESTROY = 7; 
-        const FIRE_RATE = 120;     
-
+        const HITS_TO_DESTROY = 8; // 符合要求：按下 5~10 下銷毀
+        const FIRE_RATE = 100;     
         const GameState = { MENU: 'MENU', PLAYING: 'PLAYING', RESULT: 'RESULT', HISTORY: 'HISTORY' };
 
-        // 背景：星星閃爍
+        // 星空背景組件
         const Background = () => {
           const stars = useMemo(() => Array.from({ length: 80 }).map((_, i) => ({
             id: i, x: Math.random() * 100, y: Math.random() * 100, size: Math.random() * 2 + 1, duration: Math.random() * 3 + 2
@@ -77,7 +89,6 @@
           );
         };
 
-        // 核心引擎
         const GameEngine = ({ level, onEnd, onQuit }) => {
           const [questions, setQuestions] = useState([]);
           const [currentIdx, setCurrentIdx] = useState(0);
@@ -94,9 +105,13 @@
           const lastFireTime = useRef(0);
           const bulletIdRef = useRef(0);
 
-          // 初始化題目
+          // 1. 生成題目
           useEffect(() => {
-            const poolA = level === 1 ? [1, 2, 3] : level === 2 ? [4, 5, 6] : [7, 8, 9];
+            let poolA = [];
+            if (level === 1) poolA = [1, 2, 3];
+            else if (level === 2) poolA = [4, 5, 6];
+            else poolA = [7, 8, 9];
+
             const qs = Array.from({ length: TOTAL_QUESTIONS }).map(() => {
               const a = poolA[Math.floor(Math.random() * poolA.length)];
               const b = Math.floor(Math.random() * 9) + 1;
@@ -111,7 +126,7 @@
             setQuestions(qs);
           }, [level]);
 
-          // 下一題更新
+          // 2. 更新隕石目標
           useEffect(() => {
             if (questions[currentIdx]) {
               const q = questions[currentIdx];
@@ -126,21 +141,29 @@
             }
           }, [currentIdx, questions]);
 
+          // 3. 遊戲主迴圈
           const update = useCallback(() => {
             const now = Date.now();
+            
+            // 處理射擊
             if (isFiring && now - lastFireTime.current > FIRE_RATE) {
               bulletsRef.current.push({ id: bulletIdRef.current++, x: shipX, y: 85 });
               setShotsFired(s => s + 1);
               lastFireTime.current = now;
             }
-            bulletsRef.current = bulletsRef.current.map(b => ({ ...b, y: b.y - 4 })).filter(b => b.y > -5);
+
+            // 更新子彈與閃爍
+            bulletsRef.current = bulletsRef.current.map(b => ({ ...b, y: b.y - 4.5 })).filter(b => b.y > -5);
             targetsRef.current = targetsRef.current.map(t => ({ ...t, flash: Math.max(0, t.flash - 0.1) }));
+
             const hitBulletIds = new Set();
             bulletsRef.current.forEach(b => {
               targetsRef.current.forEach(t => {
                 if (!t.destroyed && Math.abs(b.x - t.x) < 7 && Math.abs(b.y - (t.y + 10)) < 10) {
                   hitBulletIds.add(b.id);
-                  t.hp -= 1; t.flash = 1;
+                  t.hp -= 1;
+                  t.flash = 1;
+                  
                   if (t.hp <= 0) {
                     t.destroyed = true;
                     if (t.isCorrect) {
@@ -148,17 +171,21 @@
                       setTimeout(() => setCurrentIdx(prev => prev + 1), 600);
                     } else {
                       setScore(s => Math.max(0, s - 50));
+                      // 錯的會再生
                       setTimeout(() => { t.destroyed = false; t.hp = t.maxHp; }, 1000);
                     }
                   }
                 }
               });
             });
+
             bulletsRef.current = bulletsRef.current.filter(b => !hitBulletIds.has(b.id));
             setBullets([...bulletsRef.current]);
             setTargets([...targetsRef.current]);
-            if (currentIdx < TOTAL_QUESTIONS) requestAnimationFrame(update);
-            else {
+
+            if (currentIdx < TOTAL_QUESTIONS) {
+              requestAnimationFrame(update);
+            } else {
               const acc = shotsFired > 0 ? Math.round(((TOTAL_QUESTIONS * HITS_TO_DESTROY) / shotsFired) * 100) : 0;
               onEnd(score, Math.min(100, acc));
             }
@@ -169,6 +196,7 @@
             return () => cancelAnimationFrame(frame);
           }, [update]);
 
+          // 4. 事件監聽
           useEffect(() => {
             const handleMove = (e) => {
               if (containerRef.current) {
@@ -176,17 +204,29 @@
                 setShipX(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
               }
             };
+            const handleKeyDown = (e) => {
+              if (e.key === 'ArrowLeft') setShipX(x => Math.max(0, x - 5));
+              if (e.key === 'ArrowRight') setShipX(x => Math.min(100, x + 5));
+              if (e.key === 'Enter') setIsFiring(true);
+            };
+            const handleKeyUp = (e) => { if (e.key === 'Enter') setIsFiring(false); };
+            
             window.addEventListener('mousemove', handleMove);
+            window.addEventListener('keydown', handleKeyDown);
+            window.addEventListener('keyup', handleKeyUp);
             window.addEventListener('mousedown', () => setIsFiring(true));
             window.addEventListener('mouseup', () => setIsFiring(false));
             return () => {
               window.removeEventListener('mousemove', handleMove);
+              window.removeEventListener('keydown', handleKeyDown);
+              window.removeEventListener('keyup', handleKeyUp);
               window.removeEventListener('mousedown', () => setIsFiring(true));
               window.removeEventListener('mouseup', () => setIsFiring(false));
             };
           }, []);
 
           const q = questions[currentIdx];
+
           return (
             <div ref={containerRef} className="relative w-full h-full cursor-none overflow-hidden">
               <div className="absolute top-0 w-full p-8 flex justify-between items-start z-30 font-mono-tech">
@@ -195,19 +235,20 @@
                   <div className="text-2xl">{currentIdx + 1} / {TOTAL_QUESTIONS}</div>
                 </div>
                 <div className="bg-black/80 px-12 py-6 rounded-[2rem] border-2 border-cyan-400 shadow-[0_0_20px_cyan]">
-                  <div className="text-5xl font-black">{q ? `${q.a} × ${q.b}` : 'DONE'}</div>
+                  <div className="text-5xl font-black">{q ? `${q.a} × ${q.b}` : 'MISSION COMPLETE'}</div>
                 </div>
                 <div className="bg-black/60 p-4 rounded-xl border border-blue-500/30 text-right">
                   <div className="text-[10px] text-blue-400 uppercase font-bold">Score</div>
                   <div className="text-2xl">{score}</div>
-                  <button onClick={onQuit} className="text-[9px] text-rose-400 underline block w-full">ABORT</button>
+                  <button onClick={onQuit} className="text-[9px] text-rose-400 underline block w-full uppercase mt-1">Abort</button>
                 </div>
               </div>
+
               {targets.map(t => (
                 <div key={t.id} className={`absolute flex flex-col items-center transition-opacity duration-300 ${t.destroyed ? 'opacity-0 scale-150' : 'opacity-100'}`} style={{ left: `${t.x}%`, top: `${t.y + 10}%`, transform: 'translateX(-50%)' }}>
                   {!t.destroyed && (
                     <div className="w-16 h-1.5 bg-gray-950 rounded-full mb-3 border border-white/10 overflow-hidden">
-                      <div className="h-full bg-cyan-400 shadow-[0_0_8px_cyan]" style={{ width: `${(t.hp/t.maxHp)*100}%` }} />
+                      <div className="h-full bg-cyan-400 shadow-[0_0_8px_cyan] transition-all" style={{ width: `${(t.hp/t.maxHp)*100}%` }} />
                     </div>
                   )}
                   <div className={`w-32 h-32 flex items-center justify-center relative ${t.flash > 0 ? 'scale-110 brightness-150' : ''}`}>
@@ -218,11 +259,15 @@
                   </div>
                 </div>
               ))}
+
               {bullets.map(b => (
                 <div key={b.id} className="absolute w-1.5 h-10 bg-cyan-400 rounded-full shadow-[0_0_15px_cyan]" style={{ left: `${b.x}%`, top: `${b.y}%`, transform: 'translateX(-50%)' }} />
               ))}
+
               <div className="absolute bottom-12" style={{ left: `${shipX}%`, transform: 'translateX(-50%)' }}>
-                <svg viewBox="0 0 40 60" className="w-16 h-20 drop-shadow-[0_0_15px_cyan]"><path d="M20,0 L40,45 L30,40 L20,60 L10,40 L0,45 Z" fill="#0f172a" stroke="#22d3ee" strokeWidth="2" /></svg>
+                <svg viewBox="0 0 40 60" className="w-16 h-20 drop-shadow-[0_0_15px_cyan]">
+                    <path d="M20,0 L40,45 L30,40 L20,60 L10,40 L0,45 Z" fill="#0f172a" stroke="#22d3ee" strokeWidth="2" />
+                </svg>
               </div>
             </div>
           );
@@ -254,36 +299,39 @@
                 {state === GameState.MENU && (
                   <div className="flex flex-col items-center justify-center h-full text-center p-6">
                     <h1 className="text-7xl md:text-8xl font-black text-cyan-400 glow-text mb-16 tracking-tighter uppercase">Space Math</h1>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl mb-12">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl mb-12 font-mono-tech">
                       {[1, 2, 3].map(l => (
-                        <button key={l} onClick={() => { setLevel(l); setState(GameState.PLAYING); }} className="p-12 rounded-[2.5rem] bg-slate-950 border border-white/10 hover:border-cyan-500 transition-all shadow-2xl active:scale-95">
+                        <button key={l} onClick={() => { setLevel(l); setState(GameState.PLAYING); }} className="group p-10 rounded-[2.5rem] bg-slate-950 border border-white/10 hover:border-cyan-500 transition-all shadow-2xl active:scale-95">
                           <div className="text-5xl font-black mb-2">LV {l}</div>
-                          <div className="text-sm opacity-50 font-mono-tech">{l===1?'1x1~3x9':l===2?'4x1~6x9':'7x1~9x9'}</div>
+                          <div className="text-sm opacity-50">{l===1?'1x1~3x9':l===2?'4x1~6x9':'7x1~9x9'}</div>
                         </button>
                       ))}
                     </div>
                     <button onClick={() => setState(GameState.HISTORY)} className="text-cyan-400 font-bold uppercase tracking-widest text-xs hover:underline">Mission History</button>
                   </div>
                 )}
+
                 {state === GameState.PLAYING && <GameEngine level={level} onEnd={handleEnd} onQuit={() => setState(GameState.MENU)} />}
+
                 {state === GameState.RESULT && (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
+                  <div className="flex flex-col items-center justify-center h-full text-center p-6">
                     <div className="bg-slate-950 border-2 border-cyan-500 p-16 rounded-[3.5rem] shadow-2xl max-w-md w-full">
                       <h2 className="text-5xl font-black text-cyan-400 mb-12 uppercase">Mission Brief</h2>
-                      <div className="grid grid-cols-2 gap-8 mb-12">
+                      <div className="grid grid-cols-2 gap-8 mb-12 font-mono-tech">
                         <div><div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Score</div><div className="text-4xl font-black">{res.score}</div></div>
                         <div><div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Accuracy</div><div className="text-4xl font-black">{res.accuracy}%</div></div>
                       </div>
-                      <button onClick={() => setState(GameState.MENU)} className="w-full py-5 bg-cyan-600 rounded-2xl font-bold hover:bg-cyan-500 transition-all">RETURN TO BASE</button>
+                      <button onClick={() => setState(GameState.MENU)} className="w-full py-5 bg-cyan-600 rounded-2xl font-bold hover:bg-cyan-500 transition-all uppercase tracking-widest">Return to Base</button>
                     </div>
                   </div>
                 )}
+
                 {state === GameState.HISTORY && (
                   <div className="flex flex-col items-center h-full py-20 px-8 overflow-y-auto">
                     <h2 className="text-5xl font-black text-cyan-400 mb-12 glow-text uppercase">Flight Logs</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10 w-full max-w-6xl mb-16">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10 w-full max-w-6xl mb-16 font-mono-tech">
                       {[1, 2, 3].map(lvl => (
-                        <div key={lvl} className="bg-slate-900 p-8 rounded-[2.5rem] border border-white/10">
+                        <div key={lvl} className="bg-slate-900/50 p-8 rounded-[2.5rem] border border-white/10">
                           <h3 className="text-2xl font-black mb-6">LV {lvl} (Last 5)</h3>
                           <div className="space-y-4">
                             {history.filter(h => h.level === lvl).slice(0, 5).map((h, i) => (
@@ -292,12 +340,12 @@
                                 <div className="text-2xl font-black text-cyan-400">{h.accuracy}%</div>
                               </div>
                             ))}
-                            {history.filter(h => h.level === lvl).length === 0 && <div className="py-8 text-slate-600 italic">No data</div>}
+                            {history.filter(h => h.level === lvl).length === 0 && <div className="py-8 text-slate-600 italic">No data recorded</div>}
                           </div>
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => setState(GameState.MENU)} className="px-14 py-5 bg-white/10 rounded-full font-bold hover:bg-white/20 transition-all">BACK</button>
+                    <button onClick={() => setState(GameState.MENU)} className="px-14 py-5 bg-white/10 rounded-full font-bold hover:bg-white/20 transition-all uppercase tracking-widest text-sm">Back</button>
                   </div>
                 )}
               </div>
